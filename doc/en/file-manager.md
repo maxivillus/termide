@@ -21,10 +21,24 @@ authentication setup.
 | `←` / `h`       | Collapse directory (tree view)              |
 | `/`              | In-tree incremental search                  |
 | `Ctrl+\`          | Open directory switcher                    |
+| `Alt+F1` / `Alt+F2` | Drive menu for the left / right panel    |
 | `Ctrl+G`          | Go to path/URL                             |
 | `Alt+B`           | Add bookmark                               |
 | `Tab`             | Go to next panel                           |
 | `Shift+Tab`       | Go to previous panel                       |
+
+### Drive menu (`Alt+F1` / `Alt+F2`)
+
+The directory switcher leads with the already-mounted filesystems, labelled
+by filesystem type on Linux, volume name on macOS, drive letter on Windows.
+Only mounted filesystems are listed and nothing is ever mounted on your
+behalf, so picking one needs no privilege.
+
+`Alt+F1` opens the switcher for the panel in the leftmost column and
+`Alt+F2` for the rightmost one, whichever panel currently has focus. In a
+single-column layout both address that column. `Ctrl+\` is unchanged and
+still switches the focused panel. A column whose panel is neither a file
+manager nor a terminal is left alone.
 
 ## File Selection
 

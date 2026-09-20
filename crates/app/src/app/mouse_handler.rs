@@ -419,7 +419,9 @@ impl App {
                                     t.directory_picker_move().to_string(),
                                 );
                                 self.state.set_pending_action(
-                                    PendingAction::SwitchDirectory,
+                                    PendingAction::SwitchDirectory {
+                                        group_index: self.layout_manager.focus,
+                                    },
                                     ActiveModal::DirectoryPicker(Box::new(modal)),
                                 );
                                 return Ok(true);

@@ -246,6 +246,16 @@ impl HelpGenerator {
                 keys: Self::format_keys(&kb.toggle_fullscreen_panel),
                 description: t.help_desc_toggle_fullscreen_panel().to_string(),
             },
+            // One row for both chords: they perform the same action on the two
+            // columns, and every locale already spells that action out.
+            HelpEntry {
+                keys: format!(
+                    "{} / {}",
+                    Self::format_keys(&kb.switch_drive_left),
+                    Self::format_keys(&kb.switch_drive_right)
+                ),
+                description: t.help_desc_switch_directory().to_string(),
+            },
             HelpEntry {
                 keys: Self::format_keys(&kb.panel_grow_vertical),
                 description: t.help_desc_panel_grow_vertical().to_string(),

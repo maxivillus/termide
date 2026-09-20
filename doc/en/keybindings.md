@@ -222,6 +222,7 @@ turned on:
 | Action | Binding | Section |
 |---|---|---|
 | Toggle accordion / split | `Alt+F11` | `general` |
+| Drive menu for the left / right panel | `Alt+F1` / `Alt+F2` | `general` |
 | Delete line | `F8` | `editor` |
 | Find next | `F3` | `editor` |
 | Find previous | `Shift+F3` | `editor` |
@@ -283,6 +284,8 @@ form, so `"Alt++"` ≡ `"Alt+Shift+="` and `"Ctrl+Й"` ≡ `"Ctrl+Q"`:
 panel_grow_vertical = "Alt+Shift+="
 panel_shrink_vertical = "Alt+Shift+-"
 open_sessions = "Alt+\\"
+switch_drive_left = "Alt+F1"
+switch_drive_right = "Alt+F2"
 
 [editor.keybindings]
 trigger_completion = ["Ctrl+J", "Ctrl+Space"]

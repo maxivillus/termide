@@ -3,6 +3,7 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
+use super::super::drives::mounted_drives;
 use super::super::App;
 use crate::state::{ActiveModal, PendingAction};
 use crate::PanelExt;
@@ -11,6 +12,20 @@ use termide_i18n as i18n;
 use termide_ui_render::{
     SESSIONS_SUBMENU_CHANGE_ROOT, SESSIONS_SUBMENU_NEW, SESSIONS_SUBMENU_SWITCH,
 };
+
+/// Which panel the directory switcher acts on.
+///
+/// `Alt+F1` / `Alt+F2` pick a column by its place on screen, the way Far's
+/// drive menu does; `Ctrl+\` keeps addressing the focused panel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::app) enum DirectoryTarget {
+    /// The focused panel — the historical `Ctrl+\` behaviour.
+    Focused,
+    /// The panel in the leftmost column that still holds one.
+    LeftmostColumn,
+    /// The panel in the rightmost column that still holds one.
+    RightmostColumn,
+}
 
 impl App {
     /// Open sessions modal to switch between projects
@@ -58,16 +73,52 @@ impl App {
         Ok(())
     }
 
-    /// Open directory switcher modal
+    /// Open directory switcher modal for the focused panel.
     pub(in crate::app) fn handle_open_directory_switcher(&mut self) -> Result<()> {
+        self.open_directory_switcher(DirectoryTarget::Focused)
+    }
+
+    /// Column index the target addresses, if the layout still has that column.
+    ///
+    /// Columns are resolved before any panel is touched so a layout with no
+    /// panel never opens a modal that has nowhere to navigate.
+    fn directory_switcher_group(&self, target: DirectoryTarget) -> Option<usize> {
+        match target {
+            DirectoryTarget::Focused => self
+                .layout_manager
+                .panel_groups
+                .get(self.layout_manager.focus)
+                .map(|_| self.layout_manager.focus),
+            DirectoryTarget::LeftmostColumn => self.layout_manager.first_populated_group_index(),
+            DirectoryTarget::RightmostColumn => self.layout_manager.last_populated_group_index(),
+        }
+    }
+
+    /// Open the directory switcher for a panel chosen by column.
+    ///
+    /// The target panel decides what happens: a file manager navigates, a
+    /// terminal receives `cd`. Focus is never moved — `Alt+F1` on a two-column
+    /// layout changes the left panel and leaves the caret where it was, as in
+    /// Far.
+    pub(in crate::app) fn open_directory_switcher(
+        &mut self,
+        target: DirectoryTarget,
+    ) -> Result<()> {
         use termide_modal::{DirectoryItem, DirectorySwitcherModal};
 
         let t = i18n::t();
 
-        // Check if active panel supports directory switching (Terminal or FileManager)
+        let Some(group_index) = self.directory_switcher_group(target) else {
+            self.state
+                .set_info(t.directory_switcher_unsupported().to_string());
+            return Ok(());
+        };
+
+        // Check if the target panel supports directory switching (Terminal or FileManager)
         let panel_supported = self
             .layout_manager
-            .active_panel_mut()
+            .get_group_mut(group_index)
+            .and_then(|group| group.expanded_panel_mut())
             .map(|p| p.as_terminal_mut().is_some() || p.as_file_manager_mut().is_some())
             .unwrap_or(false);
 
@@ -80,7 +131,8 @@ impl App {
         // For terminal panels, check if there's a running process (cd won't work)
         let has_running_process = self
             .layout_manager
-            .active_panel_mut()
+            .get_group_mut(group_index)
+            .and_then(|group| group.expanded_panel_mut())
             .and_then(|p| p.as_terminal_mut())
             .map(|t| t.has_running_processes())
             .unwrap_or(false);
@@ -94,7 +146,8 @@ impl App {
         // Get current panel's working directory
         let current_dir = self
             .layout_manager
-            .active_panel_mut()
+            .get_group_mut(group_index)
+            .and_then(|group| group.expanded_panel_mut())
             .and_then(|p| p.get_working_directory());
 
         // Get all unique paths from all panels
@@ -107,9 +160,33 @@ impl App {
         let mut items: Vec<DirectoryItem> = Vec::new();
         let mut seen_paths = std::collections::HashSet::new();
 
-        // Add panel paths first
+        // Mounted drives lead the list, mirroring Far's drive menu. Listing them
+        // first is also what keeps the drive block contiguous, since only the
+        // directories below are sorted.
+        for drive in mounted_drives() {
+            let is_current = current_dir.as_ref() == Some(&drive.path);
+            let display = termide_core::util::shorten_home_path(&drive.path.display().to_string());
+            seen_paths.insert(drive.path.clone());
+            items.push(DirectoryItem {
+                path: drive.path,
+                display,
+                is_current,
+                is_bookmark: false,
+                is_drive: true,
+                label: drive.label,
+            });
+        }
+        let drive_count = items.len();
+
+        // Add panel paths after the drives
         for path in panel_paths {
             let is_current = current_dir.as_ref() == Some(&path);
+            // A panel sitting on a drive is the drive entry marked current, not
+            // a second row for the same directory.
+            if let Some(existing) = items.iter_mut().find(|item| item.path == path) {
+                existing.is_current |= is_current;
+                continue;
+            }
             let display = termide_core::util::shorten_home_path(&path.display().to_string());
             seen_paths.insert(path.clone());
             items.push(DirectoryItem {
@@ -117,6 +194,8 @@ impl App {
                 display,
                 is_current,
                 is_bookmark: false,
+                is_drive: false,
+                label: None,
             });
         }
 
@@ -132,12 +211,14 @@ impl App {
                     display,
                     is_current,
                     is_bookmark: true,
+                    is_drive: false,
+                    label: None,
                 });
             }
         }
 
-        // Sort items alphabetically by display path
-        items.sort_by(|a, b| a.display.cmp(&b.display));
+        // Sort the directories alphabetically, leaving the drive block alone
+        items[drive_count..].sort_by(|a, b| a.display.cmp(&b.display));
 
         // If no paths available, show info message
         if items.is_empty() {
@@ -151,7 +232,7 @@ impl App {
         let modal = DirectorySwitcherModal::new(t.directory_switcher_title(), items)
             .with_cursor(current_idx);
         self.state.set_pending_action(
-            PendingAction::SwitchDirectory,
+            PendingAction::SwitchDirectory { group_index },
             ActiveModal::DirectorySwitcher(Box::new(modal)),
         );
 

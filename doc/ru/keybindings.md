@@ -230,6 +230,7 @@ Char('Ω') + SHIFT      ← бита ALT нет вовсе
 | Действие | Сочетание | Секция |
 |---|---|---|
 | Аккордеон / сплит | `Alt+F11` | `general` |
+| Меню дисков для левой / правой панели | `Alt+F1` / `Alt+F2` | `general` |
 | Удалить строку | `F8` | `editor` |
 | Найти далее | `F3` | `editor` |
 | Найти ранее | `Shift+F3` | `editor` |
@@ -292,6 +293,8 @@ Settings → Keybindings показывает inline-предупреждени�
 panel_grow_vertical = "Alt+Shift+="
 panel_shrink_vertical = "Alt+Shift+-"
 open_sessions = "Alt+\\"
+switch_drive_left = "Alt+F1"
+switch_drive_right = "Alt+F2"
 
 [editor.keybindings]
 trigger_completion = ["Ctrl+J", "Ctrl+Space"]

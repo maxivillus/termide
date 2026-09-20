@@ -5,6 +5,7 @@
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 
+use super::menu_actions::DirectoryTarget;
 use super::App;
 use crate::state::{ActiveModal, PendingAction};
 use crate::PanelExt;
@@ -72,6 +73,10 @@ pub(super) fn build_global_hotkey_table(kb: &GlobalKeybindings) -> HotkeyTable {
     t.insert("copy", &kb.copy);
     t.insert("cut", &kb.cut);
     t.insert("paste", &kb.paste);
+
+    // Drives (Far-style, column-addressed)
+    t.insert("switch_drive_left", &kb.switch_drive_left);
+    t.insert("switch_drive_right", &kb.switch_drive_right);
 
     t
 }
@@ -267,6 +272,18 @@ impl App {
             return Ok(self.route_clipboard(PanelCommand::Paste));
         }
 
+        // Drives — Far's `Alt+F1` / `Alt+F2`. The column they address is not
+        // necessarily the focused one, so they are resolved here rather than
+        // being routed to `active_panel_mut` like the rest of the actions.
+        if table.matches("switch_drive_left", key) {
+            self.open_directory_switcher(DirectoryTarget::LeftmostColumn)?;
+            return Ok(true);
+        }
+        if table.matches("switch_drive_right", key) {
+            self.open_directory_switcher(DirectoryTarget::RightmostColumn)?;
+            return Ok(true);
+        }
+
         // Command hotkeys (already in cached table as run_command:* entries)
         let matched = table.find_match("run_command:", key);
         if let Some(action) = matched {
@@ -331,6 +348,10 @@ impl App {
             "panel_shrink_vertical" => self.handle_panel_resize_vertical(false),
             "quit" => self.handle_quit_request()?,
             "detach_session" => self.handle_detach_session(),
+            "switch_drive_left" => self.open_directory_switcher(DirectoryTarget::LeftmostColumn)?,
+            "switch_drive_right" => {
+                self.open_directory_switcher(DirectoryTarget::RightmostColumn)?
+            }
             other => {
                 if let Some(key) = other.strip_prefix("run_command:") {
                     self.run_command_by_menu_key(key)?;

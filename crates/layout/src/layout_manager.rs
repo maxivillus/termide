@@ -312,6 +312,21 @@ impl LayoutManager {
         self.panel_groups.get_mut(index)
     }
 
+    /// Index of the leftmost column that still holds a panel.
+    ///
+    /// Empty columns are skipped: they take no screen width, so addressing one
+    /// would target nothing the user can see.
+    pub fn first_populated_group_index(&self) -> Option<usize> {
+        self.panel_groups.iter().position(|group| !group.is_empty())
+    }
+
+    /// Index of the rightmost column that still holds a panel.
+    pub fn last_populated_group_index(&self) -> Option<usize> {
+        self.panel_groups
+            .iter()
+            .rposition(|group| !group.is_empty())
+    }
+
     /// Get number of groups.
     pub fn group_count(&self) -> usize {
         self.panel_groups.len()
@@ -376,6 +391,58 @@ mod tests {
 
     fn panel(name: &'static str) -> Box<dyn Panel> {
         Box::new(MockPanel::new(name))
+    }
+
+    // =========================================================================
+    // Column addressing (drive menu)
+    // =========================================================================
+
+    #[test]
+    fn test_single_column_is_both_ends() {
+        let mut lm = LayoutManager::new();
+        let config = make_config(80);
+        // Narrow enough that the second panel stacks instead of splitting.
+        lm.add_panel(panel("a"), &config, 100);
+        lm.add_panel(panel("b"), &config, 100);
+        assert_eq!(lm.group_count(), 1);
+        assert_eq!(lm.first_populated_group_index(), Some(0));
+        assert_eq!(lm.last_populated_group_index(), Some(0));
+    }
+
+    #[test]
+    fn test_two_columns_map_to_left_and_right_ends() {
+        let mut lm = LayoutManager::new();
+        let config = make_config(40);
+        lm.add_panel(panel("a"), &config, 200);
+        lm.add_panel(panel("b"), &config, 200);
+        assert_eq!(lm.group_count(), 2);
+        assert_eq!(lm.first_populated_group_index(), Some(0));
+        assert_eq!(lm.last_populated_group_index(), Some(1));
+    }
+
+    #[test]
+    fn test_empty_layout_has_no_column_to_address() {
+        let lm = LayoutManager::new();
+        assert_eq!(lm.first_populated_group_index(), None);
+        assert_eq!(lm.last_populated_group_index(), None);
+    }
+
+    #[test]
+    fn test_emptied_column_is_skipped_when_resolving_ends() {
+        let mut lm = LayoutManager::new();
+        let config = make_config(40);
+        lm.add_panel(panel("a"), &config, 200);
+        lm.add_panel(panel("b"), &config, 200);
+
+        // A column left behind by closing its only panel takes no width, so
+        // addressing it would target nothing on screen.
+        let mut emptied = PanelGroup::new(panel("gone"));
+        emptied.remove_panel(0);
+        lm.panel_groups.insert(1, emptied);
+
+        assert_eq!(lm.group_count(), 3);
+        assert_eq!(lm.first_populated_group_index(), Some(0));
+        assert_eq!(lm.last_populated_group_index(), Some(2));
     }
 
     // =========================================================================

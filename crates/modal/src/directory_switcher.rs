@@ -21,7 +21,7 @@ use termide_theme::Theme;
 
 use crate::{calculate_modal_width, centered_rect_with_size, Modal, ModalResult, ModalWidthConfig};
 
-/// Item representing a directory in the list
+/// Item representing a directory or a drive in the list
 #[derive(Debug, Clone)]
 pub struct DirectoryItem {
     /// Full path
@@ -32,6 +32,12 @@ pub struct DirectoryItem {
     pub is_current: bool,
     /// Whether this is a bookmarked directory
     pub is_bookmark: bool,
+    /// Whether this entry is a mounted drive rather than a directory in use.
+    /// Drives are listed first, so this drives styling only.
+    pub is_drive: bool,
+    /// Filesystem type or volume name, shown dimmed after the path. `None`
+    /// for directories and for platforms whose drives carry no label.
+    pub label: Option<String>,
 }
 
 /// Directory switcher modal window
@@ -46,6 +52,14 @@ pub struct DirectorySwitcherModal {
 
 /// Maximum number of items visible at once (single-line items)
 const MAX_VISIBLE_ITEMS: usize = 10;
+
+impl DirectoryItem {
+    /// Text appended after the path. Drives carry their filesystem type so two
+    /// similar mount points stay distinguishable; directories carry none.
+    fn suffix(&self) -> Option<String> {
+        self.label.as_deref().map(|label| format!("  [{label}]"))
+    }
+}
 
 impl DirectorySwitcherModal {
     /// Create a new directory switcher modal
@@ -74,7 +88,11 @@ impl DirectorySwitcherModal {
         let max_path_width = self
             .items
             .iter()
-            .map(|item| item.display.len() as u16 + 6) // "▶ " + path + " (*)"
+            .map(|item| {
+                item.display.len() as u16 // "▶ " + path + suffix + " (*)"
+                    + item.suffix().map_or(0, |suffix| suffix.len() as u16)
+                    + 6
+            })
             .max()
             .unwrap_or(40);
 
@@ -157,8 +175,7 @@ impl Modal for DirectorySwitcherModal {
             // Line: Path with selection indicator
             let prefix = if is_selected { "▶ " } else { "  " };
 
-            // No suffix markers - clean display
-            let path_suffix = "";
+            let suffix = item.suffix().unwrap_or_default();
 
             let path_style = if is_selected {
                 Style::default()
@@ -168,18 +185,33 @@ impl Modal for DirectorySwitcherModal {
             } else if item.is_current {
                 // Current directory highlighted with accent color
                 Style::default().fg(theme.accented_fg)
+            } else if item.is_drive {
+                // Drives lead the list; accent marks them as roots rather than
+                // places the session currently sits in.
+                Style::default().fg(theme.accented_fg)
             } else {
                 Style::default().fg(theme.fg)
             };
 
+            // The suffix stays dimmed so it never competes with the path, and
+            // keeps the row background when the row is the selected one.
+            let suffix_style = if is_selected {
+                Style::default()
+                    .fg(theme.disabled)
+                    .bg(theme.bg)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(theme.disabled)
+            };
+
             // Pad line to full width (use unicode width for correct calculation)
-            let line_width = prefix.width() + item.display.width() + path_suffix.width();
+            let line_width = prefix.width() + item.display.width() + suffix.width();
             let padding = " ".repeat((inner.width as usize).saturating_sub(line_width));
 
             let line = Line::from(vec![
                 Span::styled(prefix, path_style),
                 Span::styled(&item.display, path_style),
-                Span::styled(path_suffix, path_style),
+                Span::styled(suffix, suffix_style),
                 Span::styled(padding, path_style),
             ]);
 

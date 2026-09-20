@@ -532,9 +532,9 @@ impl App {
                 PendingAction::GitRevertAll { repo_path } => {
                     self.handle_git_revert_all(value, &repo_path)?;
                 }
-                // Switch active panel's working directory
-                PendingAction::SwitchDirectory => {
-                    self.handle_switch_directory(value)?;
+                // Switch a panel's working directory
+                PendingAction::SwitchDirectory { group_index } => {
+                    self.handle_switch_directory(value, group_index)?;
                 }
                 // Add bookmark
                 PendingAction::AddBookmark { selected, .. } => {

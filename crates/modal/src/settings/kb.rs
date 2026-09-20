@@ -88,6 +88,8 @@ pub(super) fn kb_binding_names(section: usize) -> &'static [&'static str] {
             "copy",
             "cut",
             "paste",
+            "switch_drive_left",
+            "switch_drive_right",
         ],
         1 => &[
             "save",
@@ -216,7 +218,9 @@ pub(super) fn get_kb_value(config: &Config, section: usize, name: &str) -> Strin
             open_command_palette,
             copy,
             cut,
-            paste
+            paste,
+            switch_drive_left,
+            switch_drive_right
         ),
         1 => kb_get!(
             config.editor.keybindings,
@@ -379,7 +383,9 @@ pub(super) fn set_kb_value(config: &mut Config, section: usize, name: &str, valu
             open_command_palette,
             copy,
             cut,
-            paste
+            paste,
+            switch_drive_left,
+            switch_drive_right
         ),
         1 => kb_set!(
             config.editor.keybindings,

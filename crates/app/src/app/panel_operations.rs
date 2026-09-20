@@ -682,15 +682,25 @@ impl App {
         }
     }
 
-    /// Handle switch directory modal result - change active panel's working directory
-    pub(super) fn handle_switch_directory(&mut self, value: Box<dyn std::any::Any>) -> Result<()> {
+    /// Handle switch directory modal result - change the target panel's working
+    /// directory. `group_index` names the column whose focused panel navigates;
+    /// it is not always the focused column (`Alt+F1` / `Alt+F2`).
+    pub(super) fn handle_switch_directory(
+        &mut self,
+        value: Box<dyn std::any::Any>,
+        group_index: usize,
+    ) -> Result<()> {
         use crate::panel_ext::PanelExt;
 
         if let Some(path) = value.downcast_ref::<std::path::PathBuf>() {
             let t = i18n::t();
 
-            // Get active panel and switch based on panel type
-            if let Some(panel) = self.layout_manager.active_panel_mut() {
+            // Switch based on panel type
+            if let Some(panel) = self
+                .layout_manager
+                .get_group_mut(group_index)
+                .and_then(|group| group.expanded_panel_mut())
+            {
                 // Try as FileManager
                 if let Some(file_manager) = panel.as_file_manager_mut() {
                     let _ = file_manager.navigate_to(path.clone());

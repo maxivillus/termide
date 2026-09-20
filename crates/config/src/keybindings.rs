@@ -455,6 +455,66 @@ mod tests {
         assert_eq!(kb.modifiers, KeyModifiers::empty());
     }
 
+    /// The drive-menu defaults must survive parsing. `HotkeyTable::insert`
+    /// drops an unparseable binding without a word, so a typo in the default
+    /// would leave `Alt+F1` doing nothing instead of failing loudly.
+    #[test]
+    fn test_parse_alt_function_keys() {
+        for (binding, key) in [("Alt+F1", KeyCode::F(1)), ("Alt+F2", KeyCode::F(2))] {
+            let parsed =
+                parse_keybinding(binding).unwrap_or_else(|e| panic!("{binding} failed: {e}"));
+            assert_eq!(parsed.key, key);
+            assert_eq!(parsed.modifiers, KeyModifiers::ALT);
+        }
+    }
+
+    /// Ship the drive menu on Far's chords, and on nothing else.
+    #[test]
+    fn test_drive_menu_defaults_are_bound() {
+        let mut kb = super::sections::GlobalKeybindings::default();
+        kb.with_defaults();
+        assert_eq!(
+            kb.switch_drive_left,
+            Some(KeyBinding::Single("Alt+F1".to_string()))
+        );
+        assert_eq!(
+            kb.switch_drive_right,
+            Some(KeyBinding::Single("Alt+F2".to_string()))
+        );
+    }
+
+    /// `Alt+F1` must reach the drive menu and not the help panel.
+    ///
+    /// `open_help` carries a bare `F1` alternative, so the two defaults only
+    /// stay apart while modifier comparison is strict. If a normalizer step
+    /// ever relaxed it, `Alt+F1` would open help and the drive menu would be
+    /// unreachable without a visible failure.
+    #[test]
+    fn test_drive_menu_chords_do_not_collide_with_help() {
+        let mut kb = super::sections::GlobalKeybindings::default();
+        kb.with_defaults();
+        let (left, right) = (
+            kb.switch_drive_left.as_ref().unwrap(),
+            kb.switch_drive_right.as_ref().unwrap(),
+        );
+        let help = kb.open_help.as_ref().unwrap();
+
+        let alt_f1 = KeyEvent::new(KeyCode::F(1), KeyModifiers::ALT);
+        assert!(left.matches(&alt_f1), "Alt+F1 must reach the drive menu");
+        assert!(!help.matches(&alt_f1), "Alt+F1 must not open help");
+
+        let alt_f2 = KeyEvent::new(KeyCode::F(2), KeyModifiers::ALT);
+        assert!(right.matches(&alt_f2), "Alt+F2 must reach the drive menu");
+        assert!(!help.matches(&alt_f2), "Alt+F2 must not open help");
+
+        let bare_f1 = KeyEvent::new(KeyCode::F(1), KeyModifiers::empty());
+        assert!(help.matches(&bare_f1), "F1 must still open help");
+        assert!(
+            !left.matches(&bare_f1),
+            "a bare F1 must not reach the drive menu"
+        );
+    }
+
     /// Regression: `F13`-`F24` must parse. xterm reports `Shift+F12` as
     /// `F24`, and the `find_references` default lists `F24` as the
     /// alternative for exactly that case — an unparseable binding is

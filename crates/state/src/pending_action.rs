@@ -144,8 +144,15 @@ pub enum PendingAction {
         /// Repository root path
         repo_path: PathBuf,
     },
-    /// Switch active panel's working directory
-    SwitchDirectory,
+    /// Switch a panel's working directory.
+    ///
+    /// `group_index` names the column whose focused panel is the target. It is
+    /// carried in the action because the modal can be opened for a column other
+    /// than the focused one (`Alt+F1` / `Alt+F2`).
+    SwitchDirectory {
+        /// Column whose focused panel navigates.
+        group_index: usize,
+    },
     /// Add a bookmark
     AddBookmark {
         /// Group name to restore nested menu on return

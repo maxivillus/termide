@@ -71,6 +71,13 @@ pub struct GlobalKeybindings {
     pub copy: Option<KeyBinding>,
     pub cut: Option<KeyBinding>,
     pub paste: Option<KeyBinding>,
+
+    // Drives — Far's drive menu. Each addresses the panel sitting in a screen
+    // column rather than the focused panel, so a two-column layout changes the
+    // left panel with `switch_drive_left` and the right one with
+    // `switch_drive_right` no matter where the caret is.
+    pub switch_drive_left: Option<KeyBinding>,
+    pub switch_drive_right: Option<KeyBinding>,
 }
 
 /// Editor keybindings (editor.keybindings section).
@@ -482,6 +489,14 @@ impl GlobalKeybindings {
         set_default!(copy, "Ctrl+C");
         set_default!(cut, "Ctrl+X");
         set_default!(paste, "Ctrl+V");
+
+        // Drives — Far's drive menu. Column-addressed rather than
+        // focus-addressed, so they keep working while the caret sits in the
+        // other panel. `Alt+F11` (toggle_fullscreen_panel) already proves an
+        // `Alt+F<n>` chord reaches termide through VTE; the same terminals that
+        // rewrite it are handled in doc/*/keybindings.md.
+        set_default!(switch_drive_left, "Alt+F1");
+        set_default!(switch_drive_right, "Alt+F2");
     }
 }
 

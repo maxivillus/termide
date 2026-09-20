@@ -151,6 +151,18 @@ pub fn enumerate_bindings(config: &Config) -> Vec<(BindingLocation, ParsedKeyBin
     push(&mut out, "general", "copy", &g.copy);
     push(&mut out, "general", "cut", &g.cut);
     push(&mut out, "general", "paste", &g.paste);
+    push(
+        &mut out,
+        "general",
+        "switch_drive_left",
+        &g.switch_drive_left,
+    );
+    push(
+        &mut out,
+        "general",
+        "switch_drive_right",
+        &g.switch_drive_right,
+    );
 
     let e = &config.editor.keybindings;
     push(&mut out, "editor", "save", &e.save);
@@ -521,6 +533,8 @@ mod tests {
 
         for expected in [
             "general.toggle_fullscreen_panel",
+            "general.switch_drive_left",
+            "general.switch_drive_right",
             "editor.delete_line",
             "editor.search_next",
             "editor.search_prev",

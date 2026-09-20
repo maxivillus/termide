@@ -65,6 +65,8 @@ fn collect_global_reserved_hotkeys(kb: &GlobalKeybindings) -> Vec<ReservedHotkey
     push_reserved_hotkeys(&mut reserved, &kb.resize_larger);
     push_reserved_hotkeys(&mut reserved, &kb.panel_action_menu);
     push_reserved_hotkeys(&mut reserved, &kb.quit);
+    push_reserved_hotkeys(&mut reserved, &kb.switch_drive_left);
+    push_reserved_hotkeys(&mut reserved, &kb.switch_drive_right);
     reserved
 }
 

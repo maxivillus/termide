@@ -30,6 +30,8 @@ use termide_ui_render::menu::{
 };
 use termide_ui_render::{OPTIONS_SUBMENU_LANGUAGE, OPTIONS_SUBMENU_THEMES};
 
+pub(in crate::app) use sessions::DirectoryTarget;
+
 /// Result of generic submenu keyboard navigation.
 enum SubmenuNavAction {
     /// User pressed Esc — close submenu
