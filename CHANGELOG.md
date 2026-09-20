@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.35.1] - 2026-09-20
+
 ### Added
 - **Mounted drives in the directory switcher, on `Alt+F1` and `Alt+F2`.** The switcher opened with `Ctrl+\` listed the paths of the open panels and the bookmarks, so reaching another filesystem meant typing its path through `Ctrl+G` or walking up to `/`. It now leads with the already-mounted filesystems — labelled by filesystem type on Linux, volume name on macOS, drive letter on Windows. `Alt+F1` opens it for the panel in the leftmost column and `Alt+F2` for the rightmost one, addressing a column rather than the focused panel, the way Far's drive menu does; on a single-column layout both address that column. Only mounted filesystems are listed and nothing is mounted on the user's behalf, so picking one needs no privilege, `Ctrl+\` is unchanged and still switches the focused panel, and a column whose panel is neither a file manager nor a terminal is left untouched. Focus never moves, so `Alt+F1` on a two-column layout changes the left panel and leaves the caret where it was, and a drive that is already some panel's directory is listed once, marked as current, instead of being repeated below.
 
