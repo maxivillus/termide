@@ -1,5 +1,16 @@
 name: Release
 
+# Builds this fork's own release: the quality gates, seven target binaries,
+# .deb and .rpm packages, and a GitHub Release on the tag.
+#
+# Upstream also publishes to the AUR and to its Homebrew tap. Those two jobs are
+# deliberately absent here. Both hard-code `github.com/termide/termide` as the
+# artifact source and push into `termide`-owned remotes — aur.archlinux.org
+# `termide` / `termide-bin` and `termide/homebrew-termide` — using deploy keys
+# this fork does not hold. Restoring them means repointing every URL and secret
+# at the fork's own ownership first; until then they would publish checksums of
+# upstream's artifacts from a repository that is not upstream's.
+
 on:
   push:
     tags:
@@ -276,154 +287,3 @@ jobs:
           body_path: release_notes.md
           draft: false
           prerelease: false
-
-  # Update AUR packages
-  update-aur:
-    name: Update AUR
-    needs: release
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    # AUR git/SSH backend is intermittently locked read-only (malware-incident
-    # maintenance on the AUR side). Keep publishing on every tag, but don't let
-    # an AUR-side outage fail the whole release workflow — it self-heals once
-    # AUR reopens writes. Revert this once AUR is stable again.
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup SSH for AUR
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.AUR_SSH_KEY }}" > ~/.ssh/aur
-          chmod 600 ~/.ssh/aur
-          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
-
-      - name: Update AUR packages
-        env:
-          VERSION: ${{ github.ref_name }}
-        run: |
-          # Calculate SHA256 checksums
-          SRC_SHA=$(curl -sL "https://github.com/termide/termide/archive/refs/tags/${VERSION}.tar.gz" | sha256sum | cut -d' ' -f1)
-          BIN_X64_SHA=$(curl -sL "https://github.com/termide/termide/releases/download/${VERSION}/termide-${VERSION}-x86_64-unknown-linux-gnu.tar.gz" | sha256sum | cut -d' ' -f1)
-          BIN_ARM_SHA=$(curl -sL "https://github.com/termide/termide/releases/download/${VERSION}/termide-${VERSION}-aarch64-unknown-linux-gnu.tar.gz" | sha256sum | cut -d' ' -f1)
-
-          # Update termide (source package)
-          GIT_SSH_COMMAND="ssh -i ~/.ssh/aur -o StrictHostKeyChecking=accept-new" git clone ssh://aur@aur.archlinux.org/termide.git /tmp/aur-termide
-          cd /tmp/aur-termide
-
-          # Sync package() and other sections from repo
-          cp $GITHUB_WORKSPACE/packaging/aur/PKGBUILD PKGBUILD
-
-          # Update PKGBUILD
-          sed -i "s/pkgver=.*/pkgver=${VERSION}/" PKGBUILD
-          sed -i "s/pkgrel=.*/pkgrel=1/" PKGBUILD
-          sed -i "s/sha256sums=.*/sha256sums=('${SRC_SHA}')/" PKGBUILD
-
-          # Generate .SRCINFO using Docker (run as non-root user)
-          OWNER=$(stat -c %u:%g .)
-          docker run --rm -v "$PWD:/pkg" archlinux:base bash -c "
-            pacman -Sy --noconfirm pacman-contrib sudo fakeroot
-            useradd -m builder
-            chown -R builder:builder /pkg
-            cd /pkg && sudo -u builder makepkg --printsrcinfo > .SRCINFO
-          "
-          sudo chown -R $OWNER .
-
-          git config user.email "github-actions@termide.dev"
-          git config user.name "GitHub Actions"
-          git add PKGBUILD .SRCINFO
-          if git diff --cached --quiet; then
-            echo "termide PKGBUILD already up to date for ${VERSION}"
-          else
-            git commit -m "Update to ${VERSION}"
-            GIT_SSH_COMMAND="ssh -i ~/.ssh/aur" git push
-          fi
-
-          # Update termide-bin (binary package)
-          cd /tmp
-          GIT_SSH_COMMAND="ssh -i ~/.ssh/aur -o StrictHostKeyChecking=accept-new" git clone ssh://aur@aur.archlinux.org/termide-bin.git /tmp/aur-termide-bin
-          cd /tmp/aur-termide-bin
-
-          # Sync package() and other sections from repo
-          cp $GITHUB_WORKSPACE/packaging/aur/PKGBUILD-bin PKGBUILD
-
-          # Update PKGBUILD
-          sed -i "s/pkgver=.*/pkgver=${VERSION}/" PKGBUILD
-          sed -i "s/pkgrel=.*/pkgrel=1/" PKGBUILD
-          sed -i "s/sha256sums_x86_64=.*/sha256sums_x86_64=('${BIN_X64_SHA}')/" PKGBUILD
-          sed -i "s/sha256sums_aarch64=.*/sha256sums_aarch64=('${BIN_ARM_SHA}')/" PKGBUILD
-
-          # Generate .SRCINFO using Docker (run as non-root user)
-          OWNER=$(stat -c %u:%g .)
-          docker run --rm -v "$PWD:/pkg" archlinux:base bash -c "
-            pacman -Sy --noconfirm pacman-contrib sudo fakeroot
-            useradd -m builder
-            chown -R builder:builder /pkg
-            cd /pkg && sudo -u builder makepkg --printsrcinfo > .SRCINFO
-          "
-          sudo chown -R $OWNER .
-
-          git config user.email "github-actions@termide.dev"
-          git config user.name "GitHub Actions"
-          git add PKGBUILD .SRCINFO
-          if git diff --cached --quiet; then
-            echo "termide-bin PKGBUILD already up to date for ${VERSION}"
-          else
-            git commit -m "Update to ${VERSION}"
-            GIT_SSH_COMMAND="ssh -i ~/.ssh/aur" git push
-          fi
-
-  # Update Homebrew tap
-  update-homebrew:
-    name: Update Homebrew
-    needs: release
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    steps:
-      - name: Setup SSH for Homebrew tap
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.HOMEBREW_TAP_SSH_KEY }}" > ~/.ssh/homebrew_tap
-          chmod 600 ~/.ssh/homebrew_tap
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
-
-      - name: Update Homebrew formula
-        env:
-          VERSION: ${{ github.ref_name }}
-        run: |
-          # Calculate SHA256 for all platforms
-          SHA_DARWIN_X64=$(curl -sL "https://github.com/termide/termide/releases/download/${VERSION}/termide-${VERSION}-x86_64-apple-darwin.tar.gz" | sha256sum | cut -d' ' -f1)
-          SHA_DARWIN_ARM=$(curl -sL "https://github.com/termide/termide/releases/download/${VERSION}/termide-${VERSION}-aarch64-apple-darwin.tar.gz" | sha256sum | cut -d' ' -f1)
-          SHA_LINUX_X64=$(curl -sL "https://github.com/termide/termide/releases/download/${VERSION}/termide-${VERSION}-x86_64-unknown-linux-gnu.tar.gz" | sha256sum | cut -d' ' -f1)
-          SHA_LINUX_ARM=$(curl -sL "https://github.com/termide/termide/releases/download/${VERSION}/termide-${VERSION}-aarch64-unknown-linux-gnu.tar.gz" | sha256sum | cut -d' ' -f1)
-
-          # Clone homebrew-termide over SSH (deploy key), mirroring the AUR job
-          GIT_SSH_COMMAND="ssh -i ~/.ssh/homebrew_tap -o StrictHostKeyChecking=accept-new" \
-            git clone git@github.com:termide/homebrew-termide.git /tmp/homebrew-termide
-          cd /tmp/homebrew-termide
-
-          # Update version line
-          sed -i "s/version \"[^\"]*\"/version \"${VERSION}\"/" Formula/termide.rb
-
-          # Update all URLs (replace version in download URLs)
-          sed -i "s|/download/[0-9.]*|/download/${VERSION}|g" Formula/termide.rb
-          sed -i "s|termide-[0-9.]*-|termide-${VERSION}-|g" Formula/termide.rb
-
-          # Update SHA256 for each platform using unique URL patterns as anchors
-          sed -i "/x86_64-apple-darwin/{ n; s/sha256 \"[a-f0-9]*\"/sha256 \"${SHA_DARWIN_X64}\"/; }" Formula/termide.rb
-          sed -i "/aarch64-apple-darwin/{ n; s/sha256 \"[a-f0-9]*\"/sha256 \"${SHA_DARWIN_ARM}\"/; }" Formula/termide.rb
-          sed -i "/x86_64-unknown-linux-gnu/{ n; s/sha256 \"[a-f0-9]*\"/sha256 \"${SHA_LINUX_X64}\"/; }" Formula/termide.rb
-          sed -i "/aarch64-unknown-linux-gnu/{ n; s/sha256 \"[a-f0-9]*\"/sha256 \"${SHA_LINUX_ARM}\"/; }" Formula/termide.rb
-
-          git config user.email "github-actions@termide.dev"
-          git config user.name "GitHub Actions"
-          git add Formula/termide.rb
-          # Only push when the formula actually changed; never mask a real push
-          # failure — a bad deploy key must fail the job loudly instead of
-          # silently leaving the tap frozen.
-          if git diff --cached --quiet; then
-            echo "Formula already up to date for ${VERSION}, nothing to push"
-          else
-            git commit -m "Update to ${VERSION}"
-            GIT_SSH_COMMAND="ssh -i ~/.ssh/homebrew_tap" git push
-          fi
